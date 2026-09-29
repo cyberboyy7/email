@@ -404,8 +404,17 @@ export default function SecurityAlertsPanel() {
           </div>
         </div>
 
+        <div className="mb-8 flex justify-end">
+          <a
+            href="#html-extractor"
+            className="inline-flex items-center rounded-lg bg-blue-600 px-5 py-3 text-sm font-semibold text-white shadow-lg transition hover:-translate-y-0.5 hover:bg-blue-700 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-blue-400 focus:ring-offset-2"
+          >
+            Abrir processador de HTML
+          </a>
+        </div>
+
         {/* Extrator de campos editáveis */}
-        <section className="bg-white/95 rounded-2xl p-6 mb-8 shadow-lg" aria-labelledby="html-extractor-title">
+        <section id="html-extractor" className="scroll-mt-5 bg-white/95 rounded-2xl p-6 mb-8 shadow-lg" aria-labelledby="html-extractor-title">
           <div className="flex flex-col gap-2 mb-5">
             <h2 id="html-extractor-title" className="text-slate-800 text-xl font-bold flex items-center gap-3">
               Editor de HTML para o time
