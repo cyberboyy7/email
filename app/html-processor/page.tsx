@@ -14,9 +14,10 @@ type EditableField = {
 const FIELD_SELECTOR = "h1, h2, h3, h4, h5, h6, p, td, th, a, button, img"
 
 function decodeQuotedPrintable(value: string) {
-  const withoutSoftBreaks = value.replace(/=\\r?\\n/g, "")
+  const withoutSoftBreaks = value.replace(/=\r?\n/g, "")
   const bytes: number[] = []
   let decoded = ""
+  const decoder = new TextDecoder("utf-8")
 
   for (let index = 0; index < withoutSoftBreaks.length; index += 1) {
     if (withoutSoftBreaks[index] === "=" && /^[0-9A-F]{2}$/i.test(withoutSoftBreaks.slice(index + 1, index + 3))) {
@@ -25,20 +26,24 @@ function decodeQuotedPrintable(value: string) {
       continue
     }
     if (bytes.length) {
-      decoded += new TextDecoder("utf-8").decode(new Uint8Array(bytes))
+      decoded += decoder.decode(new Uint8Array(bytes))
       bytes.length = 0
     }
     decoded += withoutSoftBreaks[index]
   }
 
-  if (bytes.length) decoded += new TextDecoder("utf-8").decode(new Uint8Array(bytes))
+  if (bytes.length) decoded += decoder.decode(new Uint8Array(bytes))
   return decoded
 }
 
 function getHtmlDocument(source: string) {
   const normalizedSource = decodeQuotedPrintable(source.trim())
-  const htmlStart = normalizedSource.search(/<!doctype\\s+html|<html[\\s>]|<body[\\s>]|<table[\\s>]/i)
-  const htmlSource = htmlStart >= 0 ? normalizedSource.slice(htmlStart) : normalizedSource
+  const lowerSource = normalizedSource.toLowerCase()
+  const doctypeStart = lowerSource.indexOf("<!doctype html")
+  const htmlStart = lowerSource.indexOf("<html")
+  const bodyStart = lowerSource.indexOf("<body")
+  const firstMarkupStart = [doctypeStart, htmlStart, bodyStart].filter((index) => index >= 0).sort((a, b) => a - b)[0]
+  const htmlSource = firstMarkupStart === undefined ? normalizedSource : normalizedSource.slice(firstMarkupStart)
   const document = new DOMParser().parseFromString(htmlSource, "text/html")
   document.querySelectorAll("script, meta, base").forEach((element) => element.remove())
   return document
