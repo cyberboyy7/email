@@ -16,6 +16,11 @@ export default function SecurityAlertsPanel() {
   const [bulkEmailList, setBulkEmailList] = useState<string[]>([])
   const [sendingBulk, setSendingBulk] = useState(false)
   const [bulkProgress, setBulkProgress] = useState({ sent: 0, total: 0 })
+  const [htmlInput, setHtmlInput] = useState("")
+  const [editableFields, setEditableFields] = useState<
+    { id: string; type: string; label: string; value: string; href?: string }[]
+  >([])
+  const [htmlProcessed, setHtmlProcessed] = useState(false)
 
   const [formData, setFormData] = useState({
     companyName: "Bradescu",
@@ -113,6 +118,38 @@ export default function SecurityAlertsPanel() {
       contact: "support.google.com",
       color: "#EA4335",
     },
+  }
+
+  const processEmailHtml = () => {
+    if (!htmlInput.trim()) {
+      alert("Cole o HTML do email antes de processar.")
+      return
+    }
+
+    const document = new DOMParser().parseFromString(htmlInput, "text/html")
+    const fields: { id: string; type: string; label: string; value: string; href?: string }[] = []
+    let index = 0
+
+    document.querySelectorAll("h1, h2, h3, h4, h5, h6, p, span, td, th, a, button, img").forEach((element) => {
+      const value = element.tagName === "IMG" ? element.getAttribute("alt")?.trim() : element.textContent?.trim()
+      if (!value) return
+      if (element.closest("script, style, head, title")) return
+      const type = element.tagName === "A" ? "Link" : element.tagName === "IMG" ? "Imagem" : /^H[1-6]$/.test(element.tagName) ? "Título" : "Texto"
+      fields.push({
+        id: `${element.tagName.toLowerCase()}-${index++}`,
+        type,
+        label: `${type} ${index}`,
+        value,
+        href: element.tagName === "A" ? element.getAttribute("href") || "" : undefined,
+      })
+    })
+
+    setEditableFields(fields)
+    setHtmlProcessed(true)
+  }
+
+  const updateEditableField = (id: string, value: string) => {
+    setEditableFields((current) => current.map((field) => (field.id === id ? { ...field, value } : field)))
   }
 
   const sendAlert = async () => {
@@ -366,6 +403,63 @@ export default function SecurityAlertsPanel() {
             <div className="text-slate-500 text-xs font-semibold uppercase tracking-wide">Taxa de Sucesso</div>
           </div>
         </div>
+
+        {/* Extrator de campos editáveis */}
+        <section className="bg-white/95 rounded-2xl p-6 mb-8 shadow-lg" aria-labelledby="html-extractor-title">
+          <div className="flex flex-col gap-2 mb-5">
+            <h2 id="html-extractor-title" className="text-slate-800 text-xl font-bold flex items-center gap-3">
+              Editor de HTML para o time
+            </h2>
+            <p className="text-slate-500 text-sm">
+              Cole um email já criado para identificar títulos, textos, links e imagens que podem ser revisados pela equipe.
+            </p>
+          </div>
+          <div className="grid lg:grid-cols-2 gap-5">
+            <div className="flex flex-col gap-3">
+              <label htmlFor="email-html" className="text-slate-700 text-xs font-semibold uppercase tracking-wide">
+                HTML do email
+              </label>
+              <textarea
+                id="email-html"
+                value={htmlInput}
+                onChange={(event) => setHtmlInput(event.target.value)}
+                placeholder="Cole aqui o código HTML do email..."
+                className="min-h-48 w-full rounded-lg border border-slate-300 bg-slate-50 p-4 font-mono text-xs text-slate-700 outline-none transition focus:border-blue-500 focus:ring-2 focus:ring-blue-500/20"
+                aria-describedby="html-help"
+              />
+              <div className="flex items-center justify-between gap-3">
+                <span id="html-help" className="text-xs text-slate-500">O processamento acontece no navegador.</span>
+                <button onClick={processEmailHtml} className="rounded-lg bg-blue-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-blue-700">
+                  Processar HTML
+                </button>
+              </div>
+            </div>
+            <div className="rounded-lg border border-slate-200 bg-slate-50 p-4">
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-sm font-bold text-slate-800">Campos encontrados</h3>
+                <span className="rounded-full bg-blue-100 px-3 py-1 text-xs font-semibold text-blue-700">{editableFields.length} campos</span>
+              </div>
+              {!htmlProcessed ? (
+                <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">O resultado aparecerá aqui após o processamento.</p>
+              ) : editableFields.length === 0 ? (
+                <p className="rounded-lg border border-dashed border-slate-300 p-6 text-center text-sm text-slate-500">Nenhum campo editável foi identificado.</p>
+              ) : (
+                <div className="flex max-h-56 flex-col gap-3 overflow-y-auto pr-1">
+                  {editableFields.map((field) => (
+                    <div key={field.id} className="rounded-lg border border-slate-200 bg-white p-3">
+                      <div className="flex items-center justify-between gap-3 mb-2">
+                        <label htmlFor={field.id} className="text-xs font-semibold text-slate-700">{field.label}</label>
+                        <span className="text-[10px] font-semibold uppercase text-slate-400">{field.type}</span>
+                      </div>
+                      <input id={field.id} value={field.value} onChange={(event) => updateEditableField(field.id, event.target.value)} className="w-full rounded-md border border-slate-200 px-3 py-2 text-sm text-slate-700 outline-none focus:border-blue-500" />
+                      {field.href !== undefined && <p className="mt-1 truncate text-[11px] text-slate-400">Destino: {field.href || "sem link"}</p>}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+        </section>
 
         {/* Main Grid */}
         <div className="grid grid-cols-[380px_1fr_450px] gap-6">
