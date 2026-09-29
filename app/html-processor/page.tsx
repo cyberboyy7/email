@@ -11,7 +11,37 @@ type EditableField = {
   tagName: string
 }
 
-const FIELD_SELECTOR = "h1, h2, h3, h4, h5, h6, p, span, td, th, a, button, img"
+const FIELD_SELECTOR = "h1, h2, h3, h4, h5, h6, p, td, th, a, button, img"
+
+function decodeQuotedPrintable(value: string) {
+  return value
+    .replace(/=3D/g, "=")
+    .replace(/=20/g, " ")
+    .replace(/=09/g, "\\t")
+    .replace(/=0A/g, "\\n")
+    .replace(/=0D/g, "\\r")
+    .replace(/=([0-9A-F]{2})/gi, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
+    .replace(/=\\r?\\n/g, "")
+}
+
+function getHtmlDocument(source: string) {
+  const normalizedSource = decodeQuotedPrintable(source.trim())
+  const htmlStart = normalizedSource.search(/<!doctype\\s+html|<html[\\s>]|<body[\\s>]|<table[\\s>]/i)
+  const htmlSource = htmlStart > 0 ? normalizedSource.slice(htmlStart) : normalizedSource
+  return new DOMParser().parseFromString(htmlSource, "text/html")
+}
+
+function isEditableCandidate(element: Element) {
+  if (element.closest("script, style, head, title, meta, link, pre, code")) return false
+  if (element.tagName !== "IMG" && !element.textContent?.trim()) return false
+  const hasEditableChild = Array.from(element.children).some((child) => child.matches(FIELD_SELECTOR))
+  return !hasEditableChild
+}
+
+function getFieldValue(element: Element) {
+  if (element.tagName === "IMG") return element.getAttribute("alt")?.trim() || ""
+  return element.textContent?.replace(/\\s+/g, " ").trim() || ""
+}
 
 export default function HtmlProcessorPage() {
   const [htmlInput, setHtmlInput] = useState("")
@@ -25,14 +55,17 @@ export default function HtmlProcessorPage() {
       return
     }
 
-    const parsed = new DOMParser().parseFromString(htmlInput, "text/html")
+    const parsed = getHtmlDocument(htmlInput)
     const fields: EditableField[] = []
-    parsed.querySelectorAll(FIELD_SELECTOR).forEach((element, index) => {
-      const value = element.tagName === "IMG" ? element.getAttribute("alt")?.trim() : element.textContent?.trim()
-      if (!value || element.closest("script, style, head, title")) return
+    let fieldIndex = 0
+    parsed.querySelectorAll(FIELD_SELECTOR).forEach((element) => {
+      if (!isEditableCandidate(element)) return
+      const value = getFieldValue(element)
+      if (!value) return
       const type = element.tagName === "A" ? "Link" : element.tagName === "IMG" ? "Imagem" : /^H[1-6]$/.test(element.tagName) ? "Título" : "Texto"
-      fields.push({ id: `${element.tagName.toLowerCase()}-${index}`, type, label: `${type} ${fields.filter((field) => field.type === type).length + 1}`, value, href: element.tagName === "A" ? element.getAttribute("href") || "" : undefined, tagName: element.tagName })
-      element.setAttribute("data-editable-id", `${element.tagName.toLowerCase()}-${index}`)
+      const id = `${element.tagName.toLowerCase()}-${fieldIndex++}`
+      fields.push({ id, type, label: `${type} ${fields.filter((field) => field.type === type).length + 1}`, value, href: element.tagName === "A" ? element.getAttribute("href") || "" : undefined, tagName: element.tagName })
+      element.setAttribute("data-editable-id", id)
     })
 
     setEditableFields(fields)
