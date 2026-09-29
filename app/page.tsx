@@ -523,6 +523,18 @@ export default function SecurityAlertsPanel() {
                 </div>
               )}
             </div>
+
+            <div className="mt-6 border-t-2 border-slate-200 pt-6">
+              <a
+                href="/html-processor"
+                className="block w-full rounded-lg bg-gradient-to-r from-blue-600 to-indigo-600 p-4 text-center text-sm font-semibold text-white shadow-lg transition-all hover:-translate-y-0.5 hover:from-blue-700 hover:to-indigo-700 hover:shadow-xl"
+              >
+                Abrir processador de HTML de emails
+              </a>
+              <p className="mt-2 text-center text-xs text-slate-500">
+                Identifique e revise títulos, textos, links e imagens de emails já criados.
+              </p>
+            </div>
           </div>
 
           {/* Form Panel */}
