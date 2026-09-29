@@ -14,21 +14,34 @@ type EditableField = {
 const FIELD_SELECTOR = "h1, h2, h3, h4, h5, h6, p, td, th, a, button, img"
 
 function decodeQuotedPrintable(value: string) {
-  return value
-    .replace(/=3D/g, "=")
-    .replace(/=20/g, " ")
-    .replace(/=09/g, "\\t")
-    .replace(/=0A/g, "\\n")
-    .replace(/=0D/g, "\\r")
-    .replace(/=([0-9A-F]{2})/gi, (_, hex: string) => String.fromCharCode(Number.parseInt(hex, 16)))
-    .replace(/=\\r?\\n/g, "")
+  const withoutSoftBreaks = value.replace(/=\\r?\\n/g, "")
+  const bytes: number[] = []
+  let decoded = ""
+
+  for (let index = 0; index < withoutSoftBreaks.length; index += 1) {
+    if (withoutSoftBreaks[index] === "=" && /^[0-9A-F]{2}$/i.test(withoutSoftBreaks.slice(index + 1, index + 3))) {
+      bytes.push(Number.parseInt(withoutSoftBreaks.slice(index + 1, index + 3), 16))
+      index += 2
+      continue
+    }
+    if (bytes.length) {
+      decoded += new TextDecoder("utf-8").decode(new Uint8Array(bytes))
+      bytes.length = 0
+    }
+    decoded += withoutSoftBreaks[index]
+  }
+
+  if (bytes.length) decoded += new TextDecoder("utf-8").decode(new Uint8Array(bytes))
+  return decoded
 }
 
 function getHtmlDocument(source: string) {
   const normalizedSource = decodeQuotedPrintable(source.trim())
   const htmlStart = normalizedSource.search(/<!doctype\\s+html|<html[\\s>]|<body[\\s>]|<table[\\s>]/i)
-  const htmlSource = htmlStart > 0 ? normalizedSource.slice(htmlStart) : normalizedSource
-  return new DOMParser().parseFromString(htmlSource, "text/html")
+  const htmlSource = htmlStart >= 0 ? normalizedSource.slice(htmlStart) : normalizedSource
+  const document = new DOMParser().parseFromString(htmlSource, "text/html")
+  document.querySelectorAll("script, meta, base").forEach((element) => element.remove())
+  return document
 }
 
 function isEditableCandidate(element: Element) {
@@ -39,8 +52,28 @@ function isEditableCandidate(element: Element) {
 }
 
 function getFieldValue(element: Element) {
-  if (element.tagName === "IMG") return element.getAttribute("alt")?.trim() || ""
+  if (element.tagName === "IMG") return element.getAttribute("alt")?.trim() || element.getAttribute("src")?.trim() || ""
   return element.textContent?.replace(/\\s+/g, " ").trim() || ""
+}
+
+function updateElementText(element: Element, value: string) {
+  const walker = element.ownerDocument?.createTreeWalker(element, NodeFilter.SHOW_TEXT)
+  const textNodes: Text[] = []
+  let currentNode = walker?.nextNode()
+  while (currentNode) {
+    textNodes.push(currentNode as Text)
+    currentNode = walker?.nextNode()
+  }
+
+  if (!textNodes.length) {
+    element.textContent = value
+    return
+  }
+
+  textNodes[0].nodeValue = value
+  textNodes.slice(1).forEach((node) => {
+    node.nodeValue = ""
+  })
 }
 
 export default function HtmlProcessorPage() {
@@ -83,8 +116,12 @@ export default function HtmlProcessorPage() {
     editableFields.forEach((field) => {
       const element = document.querySelector(`[data-editable-id="${field.id}"]`)
       if (!element) return
-      if (field.tagName === "IMG") element.setAttribute("alt", field.value)
-      else element.textContent = field.value
+      if (field.tagName === "IMG") {
+        if (field.value.startsWith("http") || field.value.startsWith("data:")) element.setAttribute("src", field.value)
+        else element.setAttribute("alt", field.value)
+      } else {
+        updateElementText(element, field.value)
+      }
       if (field.tagName === "A" && field.href !== undefined) element.setAttribute("href", field.href)
     })
     const style = document.createElement("style")
